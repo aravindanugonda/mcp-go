@@ -1,0 +1,15 @@
+# Compiled binary
+.mcp-host-bin
+
+# Runtime files generated at startup
+.mcp-host.pid
+.mcp-host.log
+
+# Editor / OS
+.DS_Store
+*.swp
+*.swo
+*~
+
+# Go build cache
+/vendor/
