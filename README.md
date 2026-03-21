@@ -44,7 +44,7 @@ port: 8080
 
 ollama:
   base_url: "http://localhost:11434"
-  model: "qwen2.5-coder:7b"   # any tool-capable Ollama model
+  model: "minimax-m2.5:cloud"   # any tool-capable Ollama model
 
 mcp_servers:
   - name: "filesystem"
@@ -107,7 +107,7 @@ GO_BIN=/usr/local/go/bin/go CONFIG=/path/to/config.yaml ./mcp-host.sh start
 │       └── http.go              # HTTP + WebSocket server
 ├── web/
 │   └── index.html               # Single-page chat UI
-├── config.yaml                  # Runtime configuration
+├── config.yaml.example          # Configuration template (copy to config.yaml)
 ├── mcp-host.sh                  # Start/stop/status script
 ├── go.mod
 └── go.sum
@@ -131,11 +131,17 @@ Tool calling works best with larger, instruction-tuned models. Tested with:
 
 | Model | Notes |
 |---|---|
-| `qwen2.5-coder:7b` | Good balance of speed and capability |
-| `llama3.1:8b` | Strong general tool use |
-| `mistral:7b-instruct` | Fast, reasonable tool support |
+| `minimax-m2.5:cloud` | Recommended — strong tool use, cloud-hosted via Ollama |
 
 Small models (`< 1B params`) often return empty responses after receiving large tool results.
+
+---
+
+## MCP Server: Pinecone RAG
+
+For document-grounded Q&A, pair this host with the companion [mcp-pinecone-rag](https://github.com/aravindanugonda/mcp-pinecone-rag) server. It exposes a `rag_query` tool that embeds queries via Google Vertex AI (`text-embedding-005`) and searches a Pinecone vector index, feeding the retrieved chunks back to the LLM.
+
+See [mcp-pinecone-rag](https://github.com/aravindanugonda/mcp-pinecone-rag) for setup instructions and `config.yaml.example` for how to wire it in.
 
 ---
 
