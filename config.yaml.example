@@ -1,0 +1,26 @@
+host: "0.0.0.0"
+port: 8080
+
+ollama:
+  base_url: "http://localhost:11434"
+  model: "minimax-m2.5:cloud"   # any model available in your Ollama instance
+
+mcp_servers:
+  - name: "filesystem"
+    type: "stdio"
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+    env: {}
+
+  - name: "pinecone-rag"
+    type: "stdio"
+    command: "/path/to/mcp-pinecone-rag/mcp-pinecone-rag"
+    args: []
+    env:
+      PINECONE_API_KEY: "your-pinecone-api-key"
+      GOOGLE_CLOUD_PROJECT: "your-gcp-project-id"
+      GOOGLE_APPLICATION_CREDENTIALS: "/path/to/service-account.json"
+      VERTEX_AI_LOCATION: "us-central1"
+      PINECONE_INDEX_HOST: "your-index-host.svc.pinecone.io"
+      PINECONE_NAMESPACE: ""
+      RAG_TOP_K: "5"

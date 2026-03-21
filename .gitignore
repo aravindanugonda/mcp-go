@@ -13,3 +13,9 @@
 
 # Go build cache
 /vendor/
+
+# Config contains API keys — use config.yaml.example as template
+config.yaml
+
+# Service account key files — never commit credentials
+*.json
