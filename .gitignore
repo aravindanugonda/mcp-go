@@ -5,6 +5,10 @@
 .mcp-host.pid
 .mcp-host.log
 
+# Reranker runtime files
+.reranker.pid
+.reranker.log
+
 # Editor / OS
 .DS_Store
 *.swp

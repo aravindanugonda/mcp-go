@@ -11,7 +11,7 @@ A Go-based **MCP Host** — a chatbot application that connects [Ollama](https:/
 - **Tool calling loop** — automatically calls tools and feeds results back to the model, up to 5 iterations
 - **ChatGPT-style UI** — dark theme with markdown rendering and syntax-highlighted, copyable code blocks
 - **Real-time chat** — WebSocket with automatic REST fallback
-- **Shell script** — one-command start, stop, restart, status, and log tailing
+- **Shell script** — one-command start, stop, restart, status, and log tailing for the host **and** the local reranker
 
 ---
 
@@ -22,6 +22,7 @@ A Go-based **MCP Host** — a chatbot application that connects [Ollama](https:/
 | [Go 1.21+](https://go.dev/dl/) | Build the server |
 | [Ollama](https://ollama.com) | Running locally on port `11434` |
 | [Node.js / npx](https://nodejs.org) | Required for stdio MCP servers (e.g. `@modelcontextprotocol/server-filesystem`) |
+| Python 3 + `python3-venv` | Optional — only needed if using the local reranker |
 
 ---
 
@@ -68,18 +69,21 @@ Open **http://localhost:8080** in your browser.
 ## Shell Script
 
 ```bash
-./mcp-host.sh start      # Build and start in the background
-./mcp-host.sh stop       # Stop the server (kills Go binary + MCP child processes)
-./mcp-host.sh restart    # Stop then start
-./mcp-host.sh status     # Show PID, port health, and MCP connection state
-./mcp-host.sh logs       # Tail last 50 lines of the log (follow mode)
-./mcp-host.sh logs 100   # Tail last 100 lines
+./mcp-host.sh start              # Build and start host + reranker (if configured)
+./mcp-host.sh stop               # Stop host + reranker
+./mcp-host.sh restart            # Stop then start
+./mcp-host.sh status             # Show host, MCP connection state, and reranker health
+./mcp-host.sh logs               # Tail host log (last 50 lines, follow mode)
+./mcp-host.sh logs 100           # Tail last 100 lines of host log
+./mcp-host.sh logs reranker      # Tail reranker log
+./mcp-host.sh logs reranker 100  # Tail last 100 lines of reranker log
 ```
 
 **Environment overrides:**
 
 ```bash
 GO_BIN=/usr/local/go/bin/go CONFIG=/path/to/config.yaml ./mcp-host.sh start
+RERANKER_SCRIPT=/path/to/reranker.py RERANKER_PORT=8090 ./mcp-host.sh start
 ```
 
 ---
@@ -108,7 +112,7 @@ GO_BIN=/usr/local/go/bin/go CONFIG=/path/to/config.yaml ./mcp-host.sh start
 ├── web/
 │   └── index.html               # Single-page chat UI
 ├── config.yaml.example          # Configuration template (copy to config.yaml)
-├── mcp-host.sh                  # Start/stop/status script
+├── mcp-host.sh                  # Start/stop/status script (manages host + reranker)
 ├── go.mod
 └── go.sum
 ```
@@ -139,9 +143,45 @@ Small models (`< 1B params`) often return empty responses after receiving large 
 
 ## MCP Server: Pinecone RAG
 
-For document-grounded Q&A, pair this host with the companion [mcp-pinecone-rag](https://github.com/aravindanugonda/mcp-pinecone-rag) server. It exposes a `rag_query` tool that embeds queries via Google Vertex AI (`text-embedding-005`) and searches a Pinecone vector index, feeding the retrieved chunks back to the LLM.
+For document-grounded Q&A, pair this host with the companion [mcp-pinecone-rag](https://github.com/aravindanugonda/mcp-pinecone-rag) server. It exposes a `rag_query` tool backed by a **three-layer retrieval pipeline**:
 
-See [mcp-pinecone-rag](https://github.com/aravindanugonda/mcp-pinecone-rag) for setup instructions and `config.yaml.example` for how to wire it in.
+1. **Semantic search** — query embedded via Google Vertex AI `text-embedding-005`, top-20 candidates retrieved from Pinecone
+2. **Keyword boost** — exact matches for domain tokens (module names, error codes, ALL-CAPS acronyms) promoted in the ranking
+3. **Cross-encoder reranker** — optional local Python service (`reranker.py`) reorders the candidates by full contextual relevance using `BAAI/bge-reranker-base` via [fastembed](https://github.com/qdrant/fastembed) (no PyTorch required)
+
+### Reranker setup
+
+The reranker is started and stopped automatically by this script. It runs as a local Flask server on port `8090`.
+
+**First-time setup** — the script creates a Python venv and installs `fastembed` + `flask` automatically:
+
+```bash
+# Debian/Ubuntu: ensure venv support is available
+apt install python3-venv
+
+./mcp-host.sh start   # venv + deps installed on first run, ~150 MB
+```
+
+**In `config.yaml`**, add `RERANKER_URL` to the `pinecone-rag` server env:
+
+```yaml
+  - name: "pinecone-rag"
+    type: "stdio"
+    command: "/path/to/mcp-pinecone-rag/mcp-pinecone-rag"
+    args: []
+    env:
+      PINECONE_API_KEY: "..."
+      GOOGLE_CLOUD_PROJECT: "..."
+      GOOGLE_APPLICATION_CREDENTIALS: "/path/to/service-account.json"
+      VERTEX_AI_LOCATION: "us-central1"
+      PINECONE_INDEX_HOST: "..."
+      RAG_TOP_K: "5"
+      RERANKER_URL: "http://localhost:8090"
+```
+
+If `RERANKER_URL` is not set or the reranker service is unavailable, the RAG server falls back gracefully to the hybrid keyword-boosted results.
+
+See [mcp-pinecone-rag](https://github.com/aravindanugonda/mcp-pinecone-rag) for full setup instructions.
 
 ---
 
