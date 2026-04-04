@@ -24,3 +24,4 @@ mcp_servers:
       PINECONE_INDEX_HOST: "your-index-host.svc.pinecone.io"
       PINECONE_NAMESPACE: ""
       RAG_TOP_K: "5"
+      TRAJECTORY_LOG_FILE: "/tmp/trajectory.jsonl"

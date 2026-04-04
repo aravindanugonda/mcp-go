@@ -96,7 +96,7 @@ RERANKER_SCRIPT=/path/to/reranker.py RERANKER_PORT=8090 ./mcp-host.sh start
 │   └── main.go                  # Entry point
 ├── internal/
 │   ├── chat/
-│   │   └── handler.go           # Tool-calling loop, Ollama orchestration
+│   │   └── handler.go           # Tool-calling loop, Ollama orchestration, system prompt
 │   ├── config/
 │   │   └── config.go            # YAML config loader
 │   ├── mcp/
@@ -126,6 +126,15 @@ RERANKER_SCRIPT=/path/to/reranker.py RERANKER_PORT=8090 ./mcp-host.sh start
 3. If Ollama requests a tool call, the host executes it on the appropriate MCP server and feeds the result back.
 4. Steps 2–3 repeat (up to 5 times) until Ollama returns a plain text response.
 5. If the model returns empty content (common with small models on large tool results), the raw tool output is formatted and shown directly.
+
+### System prompt
+
+The system prompt (in `internal/chat/handler.go`) instructs the model to:
+- Call `rag_query` **once or twice at most**, then synthesize a complete answer — not re-query the same topic repeatedly
+- Always produce a formatted markdown answer from retrieved context, never output raw tool results
+- Use fenced code blocks with the correct language tag (` ```jcl `, ` ```cobol `, etc.)
+
+This prevents the common failure mode where the model loops through multiple tool calls and accumulates enough context to overflow its response window.
 
 ---
 
@@ -162,7 +171,9 @@ apt install python3-venv
 ./mcp-host.sh start   # venv + deps installed on first run, ~150 MB
 ```
 
-**In `config.yaml`**, add `RERANKER_URL` to the `pinecone-rag` server env:
+> **Note:** On first run, fastembed downloads the reranker model weights (~280 MB). This takes 30–60 seconds. The host starts immediately but the reranker will not be ready until the download completes — check `./mcp-host.sh logs reranker` and wait for `[reranker] Ready on port 8090` before sending queries that rely on reranking. On subsequent starts the model loads from cache in a few seconds.
+
+**In `config.yaml`**, add `RERANKER_URL` and optionally `TRAJECTORY_LOG_FILE` to the `pinecone-rag` server env:
 
 ```yaml
   - name: "pinecone-rag"
@@ -177,11 +188,12 @@ apt install python3-venv
       PINECONE_INDEX_HOST: "..."
       RAG_TOP_K: "5"
       RERANKER_URL: "http://localhost:8090"
+      TRAJECTORY_LOG_FILE: "/tmp/trajectory.jsonl"
 ```
 
 If `RERANKER_URL` is not set or the reranker service is unavailable, the RAG server falls back gracefully to the hybrid keyword-boosted results.
 
-See [mcp-pinecone-rag](https://github.com/aravindanugonda/mcp-pinecone-rag) for full setup instructions.
+See [mcp-pinecone-rag](https://github.com/aravindanugonda/mcp-pinecone-rag) for full setup instructions, trajectory log format, and reranker latency notes.
 
 ---
 

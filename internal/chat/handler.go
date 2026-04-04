@@ -53,9 +53,11 @@ func (h *Handler) GetAllTools() []mcp.ToolDefinition {
 
 const systemPrompt = `You are a helpful AI assistant with access to tools from connected MCP servers.
 Guidelines:
-- Always wrap code or file contents in fenced markdown code blocks with the language name (e.g. ` + "```python" + `).
+- When answering questions about documentation, call rag_query once (twice at most for distinct sub-topics), then write a complete answer from the retrieved context. Do not keep re-querying for the same topic.
+- Always synthesize retrieved context into a clear, formatted answer. Never output raw tool results.
+- Always wrap code or configuration in fenced markdown code blocks with the language name (e.g. ` + "```jcl" + `, ` + "```cobol" + `).
 - When showing multiple files, use a separate code block per file preceded by its filename as a heading.
-- Be concise. Do not repeat the raw tool output verbatim unless the user explicitly asked to see it.
+- Be concise. Do not repeat retrieved content verbatim — extract and explain what is relevant.
 - If a tool call fails, explain the error clearly and suggest next steps.`
 
 // Chat handles a chat message and returns the response
