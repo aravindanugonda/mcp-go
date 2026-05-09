@@ -8,10 +8,11 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	Host       string        `yaml:"host"`
-	Port       int           `yaml:"port"`
-	Ollama     OllamaConfig  `yaml:"ollama"`
-	MCPServers []MCPServer   `yaml:"mcp_servers"`
+	Host        string       `yaml:"host"`
+	Port        int          `yaml:"port"`
+	Ollama      OllamaConfig `yaml:"ollama"`
+	MCPServers  []MCPServer  `yaml:"mcp_servers"`
+	RegistryURL string       `yaml:"registry_url"` // optional: fetch additional servers from mcp-registry
 }
 
 // OllamaConfig holds Ollama-specific settings

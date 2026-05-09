@@ -1,12 +1,15 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"mcp-host/internal/chat"
 	"mcp-host/internal/config"
@@ -14,6 +17,65 @@ import (
 	"mcp-host/internal/ollama"
 	"mcp-host/internal/server"
 )
+
+// registryServer mirrors the transport shape returned by mcp-registry.
+type registryTransport struct {
+	Type    string            `json:"type"`
+	Command string            `json:"command"`
+	Args    []string          `json:"args"`
+	Env     map[string]string `json:"env"`
+	URL     string            `json:"url"`
+}
+
+type registryEntry struct {
+	Name      string            `json:"name"`
+	Transport registryTransport `json:"transport"`
+}
+
+type registryResponse struct {
+	Servers []registryEntry `json:"servers"`
+}
+
+// fetchFromRegistry queries mcp-registry and returns server configs not already
+// present in localServers (local config takes precedence).
+func fetchFromRegistry(url string, localServers []config.MCPServer) []config.MCPServer {
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Get(url + "/v0.1/servers")
+	if err != nil {
+		log.Printf("Registry unreachable at %s: %v", url, err)
+		return nil
+	}
+	defer resp.Body.Close()
+
+	var reg registryResponse
+	if err := json.NewDecoder(resp.Body).Decode(&reg); err != nil {
+		log.Printf("Registry response parse error: %v", err)
+		return nil
+	}
+
+	local := make(map[string]bool, len(localServers))
+	for _, s := range localServers {
+		local[s.Name] = true
+	}
+
+	var extra []config.MCPServer
+	for _, e := range reg.Servers {
+		if local[e.Name] {
+			continue // local config wins
+		}
+		s := config.MCPServer{
+			Name:    e.Name,
+			Type:    e.Transport.Type,
+			Command: e.Transport.Command,
+			Args:    e.Transport.Args,
+			Env:     e.Transport.Env,
+			URL:     e.Transport.URL,
+		}
+		extra = append(extra, s)
+		log.Printf("  [registry] discovered server: %s (%s)", s.Name, s.Type)
+	}
+	return extra
+}
 
 func main() {
 	configPath := flag.String("config", "config.yaml", "Path to configuration file")
@@ -23,6 +85,13 @@ func main() {
 	cfg, err := config.Load(*configPath)
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
+	}
+
+	// Merge servers from registry (if configured)
+	if cfg.RegistryURL != "" {
+		log.Printf("Fetching servers from registry: %s", cfg.RegistryURL)
+		extra := fetchFromRegistry(cfg.RegistryURL, cfg.MCPServers)
+		cfg.MCPServers = append(cfg.MCPServers, extra...)
 	}
 
 	// Create Ollama client
@@ -43,6 +112,8 @@ func main() {
 			transport = mcp.NewStdioTransport(serverConfig.Command, serverConfig.Args, serverConfig.Env)
 		case "http":
 			transport = mcp.NewHTTPTransport(serverConfig.URL)
+		case "sse":
+			transport = mcp.NewSSETransport(serverConfig.URL)
 		default:
 			log.Printf("Unknown MCP server type: %s", serverConfig.Type)
 			continue

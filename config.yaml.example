@@ -1,6 +1,10 @@
 host: "0.0.0.0"
 port: 8080
 
+# Optional: pull server list from mcp-registry (servers defined there are merged
+# with mcp_servers below; local entries take precedence on name collision).
+# registry_url: "http://localhost:9099"
+
 ollama:
   base_url: "http://localhost:11434"
   model: "minimax-m2.5:cloud"   # any model available in your Ollama instance
