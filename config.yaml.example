@@ -7,15 +7,9 @@ port: 8080
 
 ollama:
   base_url: "http://localhost:11434"
-  model: "minimax-m2.5:cloud"   # any model available in your Ollama instance
+  model: "gemma4:31b-cloud"   # any model available in your Ollama instance
 
 mcp_servers:
-  - name: "filesystem"
-    type: "stdio"
-    command: "npx"
-    args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
-    env: {}
-
   - name: "pinecone-rag"
     type: "stdio"
     command: "/path/to/mcp-pinecone-rag/mcp-pinecone-rag"
